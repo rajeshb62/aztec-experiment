@@ -6,7 +6,6 @@ contract Crowdfunding {
 
     use dep::aztec::{
         encrypted_logs::encrypted_note_emission::encode_and_encrypt_note,
-        keys::getters::get_public_keys,
         macros::{
             events::event,
             functions::{initializer, internal, private, public},
@@ -22,8 +21,8 @@ contract Crowdfunding {
     use router::utils::privately_check_timestamp;
     use token::Token;
 
-    #[event]
     #[derive(Serialize)]
+    #[event]
     struct WithdrawalProcessed {
         who: AztecAddress,
         amount: u64,
@@ -66,10 +65,8 @@ contract Crowdfunding {
         // contract by proving that the hash of this note exists in the note hash tree.
         let mut note = ValueNote::new(amount as Field, donor);
 
-        let donor_ovpk_m = get_public_keys(donor).ovpk_m;
         storage.donation_receipts.insert(&mut note).emit(encode_and_encrypt_note(
             &mut context,
-            donor_ovpk_m,
             donor,
             donor,
         ));
