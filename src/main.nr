@@ -5,7 +5,7 @@ use dep::aztec::macros::aztec;
 contract Crowdfunding {
 
     use dep::aztec::{
-        encrypted_logs::encrypted_note_emission::encode_and_encrypt_note,
+        encrypted_logs::log_assembly_strategies::default_aes128::note::encode_and_encrypt_note,
         macros::{
             events::event,
             functions::{initializer, internal, private, public},
@@ -16,9 +16,9 @@ contract Crowdfunding {
         unencrypted_logs::unencrypted_event_emission::encode_event,
         utils::comparison::Comparator,
     };
-    use std::meta::derive;
-    use dep::value_note::value_note::ValueNote;
+    use dep::uint_note::uint_note::UintNote;
     use router::utils::privately_check_timestamp;
+    use std::meta::derive;
     use token::Token;
 
     #[derive(Serialize)]
@@ -37,7 +37,7 @@ contract Crowdfunding {
         // End of the crowdfunding campaign after which no more donations are accepted
         deadline: PublicImmutable<u64, Context>,
         // Notes emitted to donors when they donate (can be used as proof to obtain rewards, eg in Claim contracts)
-        donation_receipts: PrivateSet<ValueNote, Context>,
+        donation_receipts: PrivateSet<UintNote, Context>,
     }
 
     // TODO(#8367): Ensure deadline is quantized to improve privacy set.
@@ -63,8 +63,7 @@ contract Crowdfunding {
             .call(&mut context);
         // 3) Create a value note for the donor so that he can later on claim a rewards token in the Claim
         // contract by proving that the hash of this note exists in the note hash tree.
-        // TODO(benesjan): Instead of ValueNote use UintNote to avoid the conversion to a Field below.
-        let mut note = ValueNote::new(amount.to_field(), donor);
+        let mut note = UintNote::new(amount, donor);
 
         storage.donation_receipts.insert(&mut note).emit(encode_and_encrypt_note(
             &mut context,
