@@ -2,7 +2,7 @@ mod test;
 use dep::aztec::macros::aztec;
 
 #[aztec]
-contract Crowdfunding {
+pub contract Crowdfunding {
 
     use dep::aztec::{
         encrypted_logs::log_assembly_strategies::default_aes128::note::encode_and_encrypt_note,
