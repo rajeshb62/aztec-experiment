@@ -28,6 +28,7 @@ pub contract Crowdfunding {
         amount: U128,
     }
 
+    // TODO: This can be optimized by storing the values in Config struct in 1 PublicImmutable (less merkle proofs).
     #[storage]
     struct Storage<Context> {
         // Token used for donations (e.g. DAI)
