@@ -1,8 +1,11 @@
 mod test;
+mod config;
+
 use dep::aztec::macros::aztec;
 
 #[aztec]
 pub contract Crowdfunding {
+    use crate::config::Config;
 
     use dep::aztec::{
         encrypted_logs::log_assembly_strategies::default_aes128::note::encode_and_encrypt_note,
@@ -28,15 +31,9 @@ pub contract Crowdfunding {
         amount: U128,
     }
 
-    // TODO: This can be optimized by storing the values in Config struct in 1 PublicImmutable (less merkle proofs).
     #[storage]
     struct Storage<Context> {
-        // Token used for donations (e.g. DAI)
-        donation_token: PublicImmutable<AztecAddress, Context>,
-        // Crowdfunding campaign operator
-        operator: PublicImmutable<AztecAddress, Context>,
-        // End of the crowdfunding campaign after which no more donations are accepted
-        deadline: PublicImmutable<u64, Context>,
+        config: PublicImmutable<Config, Context>,
         // Notes emitted to donors when they donate (can be used as proof to obtain rewards, eg in Claim contracts)
         donation_receipts: PrivateSet<UintNote, Context>,
     }
@@ -46,22 +43,23 @@ pub contract Crowdfunding {
     #[initializer]
     // this-will-error:init-header-error
     fn init(donation_token: AztecAddress, operator: AztecAddress, deadline: u64) {
-        storage.donation_token.initialize(donation_token);
-        storage.operator.initialize(operator);
-        storage.deadline.initialize(deadline);
+        storage.config.initialize(Config { donation_token, operator, deadline });
     }
 
     #[private]
     fn donate(amount: U128) {
+        let config = storage.config.read();
+
         // 1) Check that the deadline has not passed --> we do that via the router contract to conceal which contract
         // is performing the check.
-        let deadline = storage.deadline.read();
-        privately_check_timestamp(Comparator.LT, deadline, &mut context);
+        privately_check_timestamp(Comparator.LT, config.deadline, &mut context);
+
         // 2) Transfer the donation tokens from donor to this contract
         let donor = context.msg_sender();
-        Token::at(storage.donation_token.read())
+        Token::at(config.donation_token)
             .transfer_in_private(donor, context.this_address(), amount, 0)
             .call(&mut context);
+
         // 3) Create a value note for the donor so that he can later on claim a rewards token in the Claim
         // contract by proving that the hash of this note exists in the note hash tree.
         let mut note = UintNote::new(amount, donor);
@@ -76,14 +74,14 @@ pub contract Crowdfunding {
     // Withdraws balance to the operator. Requires that msg_sender() is the operator.
     #[private]
     fn withdraw(amount: U128) {
+        let config = storage.config.read();
+        let operator_address = config.operator;
+
         // 1) Check that msg_sender() is the operator
-        let operator_address = storage.operator.read();
         assert(context.msg_sender() == operator_address, "Not an operator");
 
         // 2) Transfer the donation tokens from this contract to the operator
-        Token::at(storage.donation_token.read()).transfer(operator_address, amount).call(
-            &mut context,
-        );
+        Token::at(config.donation_token).transfer(operator_address, amount).call(&mut context);
         // 3) Emit a public event so that anyone can audit how much the operator has withdrawn
         Crowdfunding::at(context.this_address())
             ._publish_donation_receipts(amount, operator_address)
